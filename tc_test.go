@@ -64,8 +64,6 @@ func TestSendReceiveWithEOL(t *testing.T) {
 
 	time.Sleep(time.Millisecond)
 
-	close(closed)
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	defer func() {
@@ -87,11 +85,11 @@ func TestSendReceiveWithEOL(t *testing.T) {
 				c.Close()
 				continue
 			}
-			log.Info("localListener received message")
+			log.Infof("localListener received message %s", line)
 			if _, err := c.Write([]byte(line)); err != nil {
 				t.Error(err)
 			}
-			log.Info("localListener sent message")
+			log.Infof("localListener sent message %s", line)
 			c.Close()
 		}
 		wg.Done()
@@ -107,7 +105,7 @@ func TestSendReceiveWithEOL(t *testing.T) {
 	case c.Send <- greeting:
 	}
 	select {
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(10 * time.Millisecond):
 		t.Errorf("Timeout on Receive")
 	case msg, ok := <-c.Receive:
 		if !ok {
@@ -117,6 +115,8 @@ func TestSendReceiveWithEOL(t *testing.T) {
 			t.Errorf("Wrong message. Want: %s\nGot : %s\n", greeting, msg)
 		}
 	}
+
+	close(closed)
 }
 
 /*

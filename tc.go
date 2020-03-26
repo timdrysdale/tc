@@ -69,7 +69,7 @@ func (c *Client) Run(closed chan struct{}) {
 			tCh <- 0 //tell the monitoring routine we're alive
 
 			n, err := io.ReadAtLeast(reader, glob, 1)
-
+			log.WithField("Count", n).Debug("Read from buffer")
 			if err == nil {
 
 				frameBuffer.mux.Lock()
