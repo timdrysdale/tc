@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/nettest"
 )
 
@@ -85,11 +85,9 @@ func TestSendReceiveWithEOL(t *testing.T) {
 				c.Close()
 				continue
 			}
-			log.Infof("localListener received message %s", line)
 			if _, err := c.Write([]byte(line)); err != nil {
 				t.Error(err)
 			}
-			log.Infof("localListener sent message %s", line)
 			c.Close()
 		}
 		wg.Done()
@@ -165,11 +163,9 @@ func TestSendReceiveMultipleWithEOL(t *testing.T) {
 				c.Close()
 				continue
 			}
-			log.Infof("localListener received message %s", line)
 			if _, err := c.Write([]byte(line)); err != nil {
 				t.Error(err)
 			}
-			log.Infof("localListener sent message %s", line)
 		}
 		c.Close()
 
@@ -200,13 +196,29 @@ func TestSendReceiveMultipleWithEOL(t *testing.T) {
 	close(closed)
 }
 
-/*
 func TestReceiveStream(t *testing.T) {
-
-	ln, err := newLocalListener("tcp")
+	ln, err := nettest.NewLocalListener("tcp")
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer ln.Close()
+	_, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := &Config{
+		MaxFrameBytes: 512,
+		Destination:   net.JoinHostPort("", port),
+	}
+
+	closed := make(chan struct{})
+
+	c := New(config)
+
+	go c.Run(closed)
+
+	time.Sleep(time.Millisecond)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -215,67 +227,37 @@ func TestReceiveStream(t *testing.T) {
 		wg.Wait()
 	}()
 
-	// Send messages at intervals, without line separators.
+	// Echo first line of a message.
 	go func() {
-		for {
-			c, err := ln.Accept()
-			if err != nil {
-				break
-			}
-			rb := bufio.NewReader(c)
-			line, err := rb.ReadString('\n')
-			if err != nil {
-				t.Error(err)
-				c.Close()
-				continue
-			}
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		for i := 0; i < 3; i++ {
+			line := strconv.Itoa(i)
 			if _, err := c.Write([]byte(line)); err != nil {
 				t.Error(err)
 			}
-			c.Close()
+			time.Sleep(5 * time.Millisecond)
 		}
+		c.Close()
+
 		wg.Done()
 	}()
 
-	try := func() {
-		cancel := make(chan struct{})
-		d := &Dialer{Cancel: cancel}
-		c, err := d.Dial("tcp", ln.Addr().String())
-
-		// Immediately after dialing, request cancellation and sleep.
-		// Before Issue 15078 was fixed, this would cause subsequent operations
-		// to fail with an i/o timeout roughly 50% of the time.
-		close(cancel)
-		time.Sleep(10 * time.Millisecond)
-
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer c.Close()
-
-		// Send some data to confirm that the connection is still alive.
-		const message = "echo!\n"
-		if _, err := c.Write([]byte(message)); err != nil {
-			t.Fatal(err)
-		}
-
-		// The server should echo the line, and close the connection.
-		rb := bufio.NewReader(c)
-		line, err := rb.ReadString('\n')
-		if err != nil {
-			t.Fatal(err)
-		}
-		if line != message {
-			t.Errorf("got %q; want %q", line, message)
-		}
-		if _, err := rb.ReadByte(); err != io.EOF {
-			t.Errorf("got %v; want %v", err, io.EOF)
+	for i := 0; i < 3; i++ {
+		select {
+		case <-time.After(10 * time.Millisecond):
+			t.Errorf("Timeout on Receive")
+		case msg, ok := <-c.Receive:
+			if !ok {
+				t.Errorf("Channel problem")
+			}
+			expected := []byte(strconv.Itoa(i))
+			if bytes.Compare(msg, expected) != 0 {
+				t.Errorf("Wrong message. Want: %s\nGot : %s\n", expected, msg)
+			}
 		}
 	}
-
-	// This bug manifested about 50% of the time, so try it a few times.
-	for i := 0; i < 10; i++ {
-		try()
-	}
+	close(closed)
 }
-*/

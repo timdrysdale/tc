@@ -121,7 +121,7 @@ func (c *Client) Run(closed chan struct{}) {
 			}
 
 		case <-closed:
-			log.WithFields(log.Fields{"Destination": c.Destination}).Info("tcp client closed")
+			log.WithFields(log.Fields{"Destination": c.Destination}).Debug("tcp client closed")
 			return
 		}
 	}
