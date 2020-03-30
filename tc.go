@@ -99,7 +99,7 @@ func (c *Client) Run(closed chan struct{}) {
 
 			// do nothing, just received data from buffer
 
-		case <-time.After(1 * time.Millisecond):
+		case <-time.After(50 * time.Millisecond):
 			// no new data for >= 1mS weakly implies frame has been fully sent to us
 			// this is two orders of magnitude more delay than when reading from
 			// non-empty buffer so _should_ be ok, but recheck if errors crop up on
